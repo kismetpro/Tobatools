@@ -133,7 +133,7 @@ class _FlashWorker(QObject):
                 self.finished.emit(False, "配置文件解析失败")
                 return
             
-            self.log_signal.emit(f"配置解析成功: 设备={plan['device']}, 步骤数={len(plan['steps'])}")
+            self.log_signal.emit(f"配置解析成功: 设备={','.join(plan.get('devices') or [])}, 步骤数={len(plan['steps'])}")
             
             # 执行刷机计划（在后台线程中）
             watcher = self.parent_tab._watcher_worker if self.parent_tab else None
@@ -865,7 +865,7 @@ class FlashTab(QWidget):
         if not plan:
             raise Exception("配置文件解析失败")
         
-        log_func(f"配置解析成功: 设备={plan['device']}, 步骤数={len(plan['steps'])}")
+        log_func(f"配置解析成功: 设备={','.join(plan.get('devices') or [])}, 步骤数={len(plan['steps'])}")
         
         # 执行刷机计划（在后台线程中）
         self._run_flash_plan_worker(plan, folder, log_func)
@@ -893,7 +893,10 @@ class FlashTab(QWidget):
             self._toast_warning("错误", "配置文件解析失败！")
             return
         
-        self.append_log(f"配置解析成功: 设备={plan['device']}, 步骤数={len(plan['steps'])}")
+        self.append_log(f"配置解析成功: 设备={','.join(plan.get('devices') or [])}, 步骤数={len(plan['steps'])}")
+        if not self._verify_devices(plan.get('devices', [])):
+            self._toast_warning("错误", "设备型号不匹配！")
+            return
         self._run_flash_plan(plan, folder)
 
     def cancel(self):
@@ -1038,6 +1041,7 @@ class FlashTab(QWidget):
             success, _ = self._run_fastboot(['reboot', 'fastboot'], "重启到 fastbootd")
             if not success:
                 return False
+
             import time
             time.sleep(3)
             for i in range(10):
@@ -1070,7 +1074,7 @@ class FlashTab(QWidget):
             with open(config_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
             
-            device_id = None
+            devices: List[str] = []
             steps = []
             current_mode = None
             
@@ -1080,7 +1084,9 @@ class FlashTab(QWidget):
                     continue
                 
                 if line.startswith('device:'):
-                    device_id = line.split(':', 1)[1].strip()
+                    v = line.split(':', 1)[1].strip()
+                    if v:
+                        devices.append(v)
                     continue
                 
                 if line == 'bootloader':
@@ -1142,12 +1148,12 @@ class FlashTab(QWidget):
                             'mode': current_mode
                         })
             
-            if not device_id:
+            if not devices:
                 self.append_log("错误: 配置文件缺少 device: 字段")
                 return None
             
             return {
-                'device': device_id,
+                'devices': devices,
                 'steps': steps
             }
         
@@ -1168,6 +1174,23 @@ class FlashTab(QWidget):
         else:
             self.append_log(f"错误: 设备型号不匹配！期望 {expected_device}，实际: {output}")
             return False
+
+    def _verify_devices(self, expected_devices: List[str]) -> bool:
+        expected_devices = [d.strip() for d in (expected_devices or []) if d and d.strip()]
+        self.append_log(f"验证设备型号列表: {', '.join(expected_devices)}")
+        success, output = self._run_fastboot(['getvar', 'product'], "获取设备型号")
+        if not success:
+            self.append_log("错误: 无法获取设备型号")
+            return False
+
+        product = (output or "").lower()
+        for expected in expected_devices:
+            if expected.lower() in product:
+                self.append_log(f"设备验证成功: {expected}")
+                return True
+
+        self.append_log(f"错误: 设备型号不匹配！期望任一 {expected_devices}，实际: {output}")
+        return False
 
     def _flash_partition(self, partition: str, disable_avb: bool = False) -> bool:
         # 处理 _ab 后缀（双槽刷写）
@@ -1321,14 +1344,18 @@ class FlashTab(QWidget):
                     device_product = line.split(':', 1)[-1].strip()
                     break
             
-            expected = plan['device'].lower()
-            if expected not in device_product:
-                raise Exception(f"设备型号不匹配：期望 {expected}, 实际 {device_product}")
-            
-            log_func(f"设备验证成功: {device_product}")
+            expected_devices = [d.strip() for d in (plan.get('devices') or []) if d and d.strip()]
+            if not expected_devices:
+                raise Exception("配置文件缺少 device: 字段")
+
+            ok = any(d.lower() in device_product for d in expected_devices)
+            if not ok:
+                raise Exception(f"设备型号不匹配：期望任一 {expected_devices}, 实际 {device_product}")
+
+            log_func(f"设备验证成功: {device_product} (命中: {expected_devices})")
         except Exception as e:
-            log_func(f"⚠️ 设备验证失败: {e}，继续执行")
-            # 不中断，继续执行
+            log_func(f"❌ 设备验证失败: {e}")
+            raise
         
         # 执行步骤
         for i, step in enumerate(plan['steps'], 1):
@@ -1630,7 +1657,7 @@ class FlashTab(QWidget):
             self.append_log("开始执行刷机计划")
             self.append_log("=" * 50)
             
-            if not self._verify_device(plan['device']):
+            if not self._verify_devices(plan.get('devices') or []):
                 self._toast_warning("错误", "设备型号验证失败！")
                 return
             
