@@ -52,7 +52,6 @@
 
 ### 🖥️ 现代化界面
 - **Fluent Design**：微软原生设计语言，界面简洁美观
-- 基于PyQt-Fluent-Widgets控件库开发 https://github.com/zhiyiYo/PyQt-Fluent-Widgets
 - **多线程异步**：所有操作在后台执行，UI 永不卡顿
 - **Win11 特效**：完美支持 Mica 云母质感和 Acrylic 毛玻璃效果
 - **实时状态显示**：设备信息、刷机进度实时更新
@@ -284,7 +283,8 @@ python -m app.main
 ---
 ## 🌟 致谢
 
-感谢所有为 Android 生态做出贡献的开发者们，正是你们的努力让刷机变得更加自由和开放。
+本项目的 UI 界面基于开源项目 [QFluentWidgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets) 开发，感谢 QFluentWidgets的作者@zhiyiYo及贡献者提供的优秀开源控件库。
+感谢所有为 Android 开源社区做出贡献的开发者、刷机爱好者，正是因为有你们，安卓的开源精神才得以延续。
 
 ---
 
