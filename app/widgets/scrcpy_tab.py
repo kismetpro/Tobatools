@@ -10,6 +10,17 @@ from pathlib import Path
 from qfluentwidgets import CardWidget, PushButton as FluentPushButton, PrimaryPushButton as FluentPrimaryPushButton, FluentIcon, CheckBox, ComboBox, InfoBar, InfoBarPosition, MessageDialog, SmoothScrollArea
 
 
+def _silent_popen_kwargs() -> dict:
+    try:
+        if os.name == 'nt':
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            return {'startupinfo': si, 'creationflags': subprocess.CREATE_NO_WINDOW}
+    except Exception:
+        pass
+    return {}
+
+
 class _ScrcpyWorker(QObject):
     finished = Signal(int)
     output = Signal(str)
@@ -82,6 +93,7 @@ class ScrcpyTab(QWidget):
                 encoding="utf-8",
                 errors="replace",
                 timeout=3,
+                **_silent_popen_kwargs(),
             )
         except Exception:
             return []

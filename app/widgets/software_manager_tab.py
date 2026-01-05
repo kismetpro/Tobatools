@@ -37,6 +37,17 @@ from qfluentwidgets import (
 from app.services import adb_service
 
 
+def _silent_popen_kwargs() -> dict:
+    try:
+        if os.name == 'nt':
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            return {'startupinfo': si, 'creationflags': subprocess.CREATE_NO_WINDOW}
+    except Exception:
+        pass
+    return {}
+
+
 class _RiskConfirmDialog(MessageBoxBase):
     def __init__(self, title: str, text: str, parent=None):
         super().__init__(parent)
@@ -176,6 +187,7 @@ class _ForegroundWorker(QObject):
                     encoding='utf-8',
                     errors='replace',
                     timeout=3,
+                    **_silent_popen_kwargs(),
                 )
                 out = r.stdout or ""
                 for line in out.splitlines():
@@ -206,6 +218,7 @@ class _ForegroundWorker(QObject):
                         encoding='utf-8',
                         errors='replace',
                         timeout=3,
+                        **_silent_popen_kwargs(),
                     )
                     out = r.stdout or ""
                     for line in out.splitlines():
@@ -476,7 +489,7 @@ class SoftwareManagerTab(QWidget):
         v_apk.addLayout(h_apk)
 
         row_install = QHBoxLayout(); row_install.setSpacing(8)
-        self.cb_reinstall = CheckBox("覆盖安装(-r)", card_apk)
+        self.cb_reinstall = CheckBox("覆盖安装（更新）", card_apk)
         self.btn_install = PrimaryPushButton("安装APK", card_apk)
         try:
             self.btn_install.setIcon(FluentIcon.FOLDER)
@@ -513,7 +526,7 @@ class SoftwareManagerTab(QWidget):
         except Exception:
             pass
         h_ops.addWidget(icon_ops)
-        h_ops.addWidget(QLabel("应用操作（基于选中包名，未选择时基于当前前台包名）"))
+        h_ops.addWidget(QLabel("应用操作（默认基于当前前台包名，在左侧列表选择时基于已选中包名）"))
         h_ops.addStretch(1)
         v_ops.addLayout(h_ops)
 
@@ -592,7 +605,7 @@ class SoftwareManagerTab(QWidget):
             self.edt_component.setPlaceholderText("输入组件：包名/类名 或 直接从列表选择")
         except Exception:
             pass
-        self.btn_enable_component = PushButton("恢复组件(pm enable)", card_info)
+        self.btn_enable_component = PushButton("恢复组件", card_info)
         row_enable.addWidget(self.edt_component)
         row_enable.addWidget(self.btn_enable_component)
         v_info.addLayout(row_enable)
