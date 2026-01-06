@@ -1,0 +1,25 @@
+2026-01-07 04:07:33	X5A10AWCVt57Dp	-	install  app-release (4).apk
+2026-01-07 04:08:14	X5A10AWCVt57Dp	-	install  com.huawei.genexcloud.speedtest.apk
+2026-01-07 04:11:40	X5A10AWCVt57Dp	-	install  Magisk-v30.6.apk
+2026-01-07 04:11:41	X5A10AWCVt57Dp	-	install  com.huawei.genexcloud.speedtest.apk
+2026-01-07 04:11:45	X5A10AWCVt57Dp	-	install  SukiSU_v4.0.0_40208-release.apk
+2026-01-07 04:12:16	X5A10AWCVt57Dp	-	install  app-pan123-v3.0.1-1011.apk
+2026-01-07 04:12:21	X5A10AWCVt57Dp	-	install  SukiSU_v3.2.0_13427-release.apk
+2026-01-07 04:12:22	X5A10AWCVt57Dp	-	install  666.apk
+2026-01-07 04:12:24	X5A10AWCVt57Dp	-	install  app-release (2).apk
+2026-01-07 04:12:25	X5A10AWCVt57Dp	-	install  Magisk-v30.0.apk
+2026-01-07 04:12:26	X5A10AWCVt57Dp	-	install  Magisk-v30.2 (1).apk
+2026-01-07 04:12:27	X5A10AWCVt57Dp	-	install  base.apk
+2026-01-07 04:12:29	X5A10AWCVt57Dp	-	install  app-release (1).apk
+2026-01-07 04:12:34	X5A10AWCVt57Dp	-	install  app-debug.apk
+2026-01-07 04:12:35	X5A10AWCVt57Dp	-	install  Magisk-v30.2.apk
+2026-01-07 04:12:36	X5A10AWCVt57Dp	-	install  Microsoft Launcher_6.241002.0.11160220_APKPure.apk
+2026-01-07 04:12:41	X5A10AWCVt57Dp	-	install  com.google.android.apps.nexuslauncher_13-906_minAPI33(nodpi)_apkmirror.com.apk
+2026-01-07 04:12:41	X5A10AWCVt57Dp	-	install  app-release.apk
+2026-01-07 04:12:42	X5A10AWCVt57Dp	-	install  MT2.19.0.apk
+2026-01-07 04:12:47	X5A10AWCVt57Dp	-	install  733aeffe15e097570c03a093f1d2a504-4599-o_1j0m0ovh119vv1oeu1omgh0f1f8i1a-uid-12202.apk
+2026-01-07 04:12:52	X5A10AWCVt57Dp	-	install  拼多多官方_lite_wxactivity_lite_6m_l_ALL.apk
+2026-01-07 04:12:55	X5A10AWCVt57Dp	-	install  系统桌面-com.android.launcher-15.8.17(1).apk
+2026-01-07 04:13:00	X5A10AWCVt57Dp	-	install  WeChat_8.0.47_APKPure.apk
+2026-01-07 04:13:28	X5A10AWCVt57Dp	-	install  WeChatPad.apk
+2026-01-07 04:15:19	X5A10AWCVt57Dp	com.example.app	uninstall

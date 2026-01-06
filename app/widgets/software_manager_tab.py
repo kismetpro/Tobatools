@@ -252,6 +252,10 @@ class SoftwareManagerTab(QWidget):
         self._pending_op_desc: str | None = None
         self._installing: bool = False
 
+        self._install_queue: list[str] = []
+        self._install_total: int = 0
+        self._install_done: int = 0
+
         self._fg_thread: QThread | None = None
         self._fg_worker: _ForegroundWorker | None = None
 
@@ -288,6 +292,12 @@ class SoftwareManagerTab(QWidget):
 
     # -------- UI --------
     def _build_ui(self):
+        PAGE_MARGIN = 24
+        CARD_MARGIN = 16
+        GAP_LG = 12
+        GAP_MD = 10
+        GAP_SM = 8
+
         outer = QVBoxLayout(self)
         try:
             outer.setContentsMargins(0, 0, 0, 0)
@@ -311,10 +321,10 @@ class SoftwareManagerTab(QWidget):
 
         lay = QVBoxLayout(container)
         try:
-            lay.setContentsMargins(24, 24, 24, 24)
+            lay.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN)
         except Exception:
             pass
-        lay.setSpacing(12)
+        lay.setSpacing(GAP_LG)
 
         # 顶部 Banner（与其他 Tab 风格一致）
         banner_w = QWidget(self)
@@ -323,7 +333,7 @@ class SoftwareManagerTab(QWidget):
         except Exception:
             pass
         banner = QHBoxLayout(banner_w)
-        banner.setContentsMargins(24, 18, 24, 18)
+        banner.setContentsMargins(PAGE_MARGIN, 18, PAGE_MARGIN, 18)
         banner.setSpacing(16)
 
         icon_lbl = QLabel("", banner_w)
@@ -361,15 +371,15 @@ class SoftwareManagerTab(QWidget):
         lay.addWidget(banner_w)
 
         body_row = QHBoxLayout()
-        body_row.setSpacing(12)
+        body_row.setSpacing(GAP_LG)
 
         # 左侧：已安装应用列表
         card_apps = CardWidget(container)
         v_apps = QVBoxLayout(card_apps)
-        v_apps.setContentsMargins(16, 16, 16, 16)
-        v_apps.setSpacing(10)
+        v_apps.setContentsMargins(CARD_MARGIN, CARD_MARGIN, CARD_MARGIN, CARD_MARGIN)
+        v_apps.setSpacing(GAP_MD)
 
-        h_apps = QHBoxLayout(); h_apps.setSpacing(8)
+        h_apps = QHBoxLayout(); h_apps.setSpacing(GAP_SM)
         icon_apps = QLabel("")
         try:
             icon_apps.setFixedSize(16, 16)
@@ -398,6 +408,10 @@ class SoftwareManagerTab(QWidget):
             self.edt_app_search.setPlaceholderText("搜索包名…")
         except Exception:
             pass
+        try:
+            self.edt_app_search.setClearButtonEnabled(True)
+        except Exception:
+            pass
         v_apps.addWidget(self.edt_app_search)
 
         self.cb_show_system_apps = CheckBox("显示系统应用", card_apps)
@@ -409,29 +423,31 @@ class SoftwareManagerTab(QWidget):
         except Exception:
             self.list_apps = QListWidget(card_apps)
         try:
-            self.list_apps.setMinimumWidth(360)
-            # 强化高亮样式（与 Fluent 主题配色尽量一致）
+            self.list_apps.setMinimumWidth(420)
             self.list_apps.setStyleSheet(
-                "QListWidget::item { padding: 6px 8px; }"
-                "QListWidget::item:selected { background: rgba(42, 116, 218, 0.18); border-radius: 6px; }"
+                "QListWidget{background:transparent;border:none;}"
+                "QListWidget::item{padding:8px 10px;margin:2px 0;border-radius:8px;}"
+                "QListWidget::item:hover{background:rgba(0,0,0,0.04);}"
+                "QListWidget::item:selected{background:rgba(42,116,218,0.18);}"
+                "QListWidget::item:selected:hover{background:rgba(42,116,218,0.22);}"
             )
         except Exception:
             pass
         v_apps.addWidget(self.list_apps)
 
-        body_row.addWidget(card_apps, 4)
+        body_row.addWidget(card_apps, 5)
 
         # 右侧：设备/安装/操作
         right_col = QVBoxLayout()
-        right_col.setSpacing(12)
+        right_col.setSpacing(GAP_LG)
 
         # 设备与前台应用信息（实时）
         card_state = CardWidget(container)
         v_state = QVBoxLayout(card_state)
-        v_state.setContentsMargins(16, 16, 16, 16)
-        v_state.setSpacing(10)
+        v_state.setContentsMargins(CARD_MARGIN, CARD_MARGIN, CARD_MARGIN, CARD_MARGIN)
+        v_state.setSpacing(GAP_MD)
 
-        h_state = QHBoxLayout(); h_state.setSpacing(8)
+        h_state = QHBoxLayout(); h_state.setSpacing(GAP_SM)
         icon_state = QLabel("")
         try:
             icon_state.setFixedSize(16, 16)
@@ -456,11 +472,9 @@ class SoftwareManagerTab(QWidget):
         for w in (self.lbl_pkg, self.lbl_act, self.lbl_dev, self.lbl_selected):
             w.setTextInteractionFlags(Qt.TextSelectableByMouse)
         try:
-            # 前台信息字号略大，便于查看
-            self.lbl_dev.setStyleSheet("font-size: 14px;")
+            self.lbl_dev.setStyleSheet("font-size: 14px; color: rgba(0,0,0,0.72);")
             self.lbl_pkg.setStyleSheet("font-size: 14px;")
-            self.lbl_act.setStyleSheet("font-size: 14px;")
-            # 已选包名更醒目
+            self.lbl_act.setStyleSheet("font-size: 13px; color: rgba(0,0,0,0.62);")
             self.lbl_selected.setStyleSheet("font-size: 15px; font-weight: 600; color: #2A74DA;")
         except Exception:
             pass
@@ -473,10 +487,10 @@ class SoftwareManagerTab(QWidget):
         # APK 安装（简化）
         card_apk = CardWidget(container)
         v_apk = QVBoxLayout(card_apk)
-        v_apk.setContentsMargins(16, 16, 16, 16)
-        v_apk.setSpacing(10)
+        v_apk.setContentsMargins(CARD_MARGIN, CARD_MARGIN, CARD_MARGIN, CARD_MARGIN)
+        v_apk.setSpacing(GAP_MD)
 
-        h_apk = QHBoxLayout(); h_apk.setSpacing(8)
+        h_apk = QHBoxLayout(); h_apk.setSpacing(GAP_SM)
         icon_apk = QLabel("")
         try:
             icon_apk.setFixedSize(16, 16)
@@ -484,41 +498,66 @@ class SoftwareManagerTab(QWidget):
         except Exception:
             pass
         h_apk.addWidget(icon_apk)
-        h_apk.addWidget(QLabel("安装 APK"))
+        h_apk.addWidget(QLabel("安装 APK（支持多选）"))
         h_apk.addStretch(1)
         v_apk.addLayout(h_apk)
 
-        row_install = QHBoxLayout(); row_install.setSpacing(8)
+        row_install = QHBoxLayout(); row_install.setSpacing(GAP_SM)
         self.cb_reinstall = CheckBox("覆盖安装（更新）", card_apk)
+        self.cb_downgrade = CheckBox("降级安装", card_apk)
         self.btn_install = PrimaryPushButton("安装APK", card_apk)
         try:
             self.btn_install.setIcon(FluentIcon.FOLDER)
         except Exception:
             pass
         row_install.addWidget(self.cb_reinstall)
+        row_install.addWidget(self.cb_downgrade)
         row_install.addStretch(1)
         row_install.addWidget(self.btn_install)
         v_apk.addLayout(row_install)
 
+        try:
+            def _on_downgrade_changed():
+                try:
+                    on = bool(self.cb_downgrade.isChecked())
+                except Exception:
+                    on = False
+                if on:
+                    try:
+                        self.cb_reinstall.setChecked(True)
+                    except Exception:
+                        pass
+                try:
+                    self.cb_reinstall.setEnabled((not self._installing) and (not on))
+                except Exception:
+                    pass
+
+            self.cb_downgrade.stateChanged.connect(_on_downgrade_changed)
+            _on_downgrade_changed()
+        except Exception:
+            pass
+
         self.install_progress = QProgressBar(card_apk)
         try:
-            # indeterminate
             self.install_progress.setRange(0, 0)
             self.install_progress.setTextVisible(True)
             self.install_progress.setFormat("正在安装…")
             self.install_progress.setVisible(False)
+            self.install_progress.setStyleSheet(
+                "QProgressBar{border:1px solid rgba(0,0,0,0.08);border-radius:8px;background:rgba(0,0,0,0.03);padding:2px;}"
+                "QProgressBar::chunk{border-radius:8px;background:rgba(42,116,218,0.55);}"
+            )
         except Exception:
             pass
         v_apk.addWidget(self.install_progress)
         right_col.addWidget(card_apk)
 
         # 基于当前包名的操作
-        card_ops = CardWidget(container)
-        v_ops = QVBoxLayout(card_ops)
-        v_ops.setContentsMargins(16, 16, 16, 16)
-        v_ops.setSpacing(10)
-
-        h_ops = QHBoxLayout(); h_ops.setSpacing(8)
+        card_ops_hint = CardWidget(container)
+        v_ops_hint = QVBoxLayout(card_ops_hint)
+        v_ops_hint.setContentsMargins(CARD_MARGIN, CARD_MARGIN, CARD_MARGIN, CARD_MARGIN)
+        v_ops_hint.setSpacing(GAP_MD)
+        h_ops = QHBoxLayout(); h_ops.setSpacing(GAP_SM)
         icon_ops = QLabel("")
         try:
             icon_ops.setFixedSize(16, 16)
@@ -526,63 +565,93 @@ class SoftwareManagerTab(QWidget):
         except Exception:
             pass
         h_ops.addWidget(icon_ops)
-        h_ops.addWidget(QLabel("应用操作（默认基于当前前台包名，在左侧列表选择时基于已选中包名）"))
+        h_ops.addWidget(QLabel("应用操作"))
         h_ops.addStretch(1)
-        v_ops.addLayout(h_ops)
+        v_ops_hint.addLayout(h_ops)
+        hint = QLabel("默认基于当前前台包名；在左侧列表选择时基于已选中包名")
+        hint.setWordWrap(True)
+        try:
+            hint.setStyleSheet("font-size: 12px; color: rgba(0,0,0,0.62);")
+        except Exception:
+            pass
+        v_ops_hint.addWidget(hint)
+        right_col.addWidget(card_ops_hint)
 
-        row_ops1 = QHBoxLayout(); row_ops1.setSpacing(8)
-        self.btn_freeze = PushButton("冻结", card_ops)
-        self.btn_unfreeze = PushButton("解冻", card_ops)
-        self.btn_force_stop = PushButton("强行停止", card_ops)
+        # 应用状态管理
+        card_ops_state = CardWidget(container)
+        v_ops_state = QVBoxLayout(card_ops_state)
+        v_ops_state.setContentsMargins(CARD_MARGIN, CARD_MARGIN, CARD_MARGIN, CARD_MARGIN)
+        v_ops_state.setSpacing(GAP_MD)
+        v_ops_state.addWidget(QLabel("应用状态管理"))
+        row_ops1 = QHBoxLayout(); row_ops1.setSpacing(GAP_SM)
+        self.btn_freeze = PushButton("冻结", card_ops_state)
+        self.btn_unfreeze = PushButton("解冻", card_ops_state)
+        self.btn_force_stop = PushButton("强行停止", card_ops_state)
         row_ops1.addWidget(self.btn_freeze)
         row_ops1.addWidget(self.btn_unfreeze)
         row_ops1.addWidget(self.btn_force_stop)
         row_ops1.addStretch(1)
-        v_ops.addLayout(row_ops1)
-
-        row_ops_perm = QHBoxLayout(); row_ops_perm.setSpacing(8)
-        self.btn_open_permissions = PushButton("权限设置", card_ops)
+        v_ops_state.addLayout(row_ops1)
+        row_ops_perm = QHBoxLayout(); row_ops_perm.setSpacing(GAP_SM)
+        self.btn_open_permissions = PushButton("权限设置", card_ops_state)
         row_ops_perm.addWidget(self.btn_open_permissions)
         row_ops_perm.addStretch(1)
-        v_ops.addLayout(row_ops_perm)
+        v_ops_state.addLayout(row_ops_perm)
+        note = QLabel("提示：冻结/解冻可能需要更高权限（部分系统需 root/设备管理员）。")
+        note.setWordWrap(True)
+        try:
+            note.setStyleSheet("font-size: 12px; color: rgba(0,0,0,0.62);")
+        except Exception:
+            pass
+        v_ops_state.addWidget(note)
+        right_col.addWidget(card_ops_state)
 
-        row_ops2 = QHBoxLayout(); row_ops2.setSpacing(8)
-        self.btn_uninstall = PushButton("卸载", card_ops)
-        self.btn_uninstall_keep = PushButton("保留数据卸载", card_ops)
-        self.btn_clear_data = PushButton("清除数据", card_ops)
-        self.btn_pull_apk = PushButton("提取APK到电脑", card_ops)
+        # 数据与卸载
+        card_ops_data = CardWidget(container)
+        v_ops_data = QVBoxLayout(card_ops_data)
+        v_ops_data.setContentsMargins(CARD_MARGIN, CARD_MARGIN, CARD_MARGIN, CARD_MARGIN)
+        v_ops_data.setSpacing(GAP_MD)
+        v_ops_data.addWidget(QLabel("数据与卸载"))
+        row_ops2 = QHBoxLayout(); row_ops2.setSpacing(GAP_SM)
+        self.btn_uninstall = PushButton("卸载", card_ops_data)
+        self.btn_uninstall_keep = PushButton("保留数据卸载", card_ops_data)
+        self.btn_clear_data = PushButton("清除数据", card_ops_data)
+        self.btn_pull_apk = PushButton("提取APK到电脑", card_ops_data)
         row_ops2.addWidget(self.btn_uninstall)
         row_ops2.addWidget(self.btn_uninstall_keep)
         row_ops2.addWidget(self.btn_clear_data)
         row_ops2.addWidget(self.btn_pull_apk)
         row_ops2.addStretch(1)
-        v_ops.addLayout(row_ops2)
+        v_ops_data.addLayout(row_ops2)
+        right_col.addWidget(card_ops_data)
 
-        row_ops3 = QHBoxLayout(); row_ops3.setSpacing(8)
-        self.btn_disable_activity = PushButton("禁用当前Activity", card_ops)
-        self.cb_root_disable_activity = CheckBox("使用root权限禁用", card_ops)
+        # 高级组件操作
+        card_ops_adv = CardWidget(container)
+        v_ops_adv = QVBoxLayout(card_ops_adv)
+        v_ops_adv.setContentsMargins(CARD_MARGIN, CARD_MARGIN, CARD_MARGIN, CARD_MARGIN)
+        v_ops_adv.setSpacing(GAP_MD)
+        v_ops_adv.addWidget(QLabel("高级"))
+        row_ops3 = QHBoxLayout(); row_ops3.setSpacing(GAP_SM)
+        self.btn_disable_activity = PushButton("禁用当前Activity", card_ops_adv)
+        self.cb_root_disable_activity = CheckBox("使用root权限禁用", card_ops_adv)
         row_ops3.addWidget(self.btn_disable_activity)
         row_ops3.addWidget(self.cb_root_disable_activity)
         row_ops3.addStretch(1)
-        self.btn_open_oplog = PushButton("打开操作记录", card_ops)
+        self.btn_open_oplog = PushButton("打开操作记录", card_ops_adv)
         try:
             self.btn_open_oplog.setIcon(FluentIcon.DOCUMENT)
         except Exception:
             pass
         row_ops3.addWidget(self.btn_open_oplog)
-        v_ops.addLayout(row_ops3)
-
-        note = QLabel("提示：冻结/解冻可能需要更高权限（部分系统需 root/设备管理员）。")
-        note.setWordWrap(True)
-        v_ops.addWidget(note)
-        right_col.addWidget(card_ops)
+        v_ops_adv.addLayout(row_ops3)
+        right_col.addWidget(card_ops_adv)
 
         # 应用信息
         card_info = CardWidget(container)
         v_info = QVBoxLayout(card_info)
-        v_info.setContentsMargins(16, 16, 16, 16)
-        v_info.setSpacing(10)
-        h_dis = QHBoxLayout(); h_dis.setSpacing(8)
+        v_info.setContentsMargins(CARD_MARGIN, CARD_MARGIN, CARD_MARGIN, CARD_MARGIN)
+        v_info.setSpacing(GAP_MD)
+        h_dis = QHBoxLayout(); h_dis.setSpacing(GAP_SM)
         h_dis.addWidget(QLabel("已禁用组件"))
         h_dis.addStretch(1)
         self.btn_refresh_disabled = PushButton("刷新禁用列表", card_info)
@@ -599,7 +668,7 @@ class SoftwareManagerTab(QWidget):
             pass
         v_info.addWidget(self.list_disabled)
 
-        row_enable = QHBoxLayout(); row_enable.setSpacing(8)
+        row_enable = QHBoxLayout(); row_enable.setSpacing(GAP_SM)
         self.edt_component = LineEdit(card_info)
         try:
             self.edt_component.setPlaceholderText("输入组件：包名/类名 或 直接从列表选择")
@@ -613,7 +682,7 @@ class SoftwareManagerTab(QWidget):
         right_col.addWidget(card_info)
 
         right_col.addStretch(1)
-        body_row.addLayout(right_col, 6)
+        body_row.addLayout(right_col, 7)
         lay.addLayout(body_row)
 
         # signals
@@ -788,12 +857,6 @@ class SoftwareManagerTab(QWidget):
             self._toast('ok' if code == 0 else 'warn', title, f"{prefix}命令返回码: {code}")
         except Exception:
             pass
-        try:
-            # stop indeterminate progress for install
-            if self._installing:
-                self._set_installing(False)
-        except Exception:
-            pass
 
     def _set_installing(self, on: bool):
         self._installing = bool(on)
@@ -809,7 +872,18 @@ class SoftwareManagerTab(QWidget):
             pass
         try:
             if hasattr(self, 'cb_reinstall') and self.cb_reinstall is not None:
-                self.cb_reinstall.setEnabled(not self._installing)
+                try:
+                    force = False
+                    if hasattr(self, 'cb_downgrade') and self.cb_downgrade is not None:
+                        force = bool(self.cb_downgrade.isChecked())
+                except Exception:
+                    force = False
+                self.cb_reinstall.setEnabled((not self._installing) and (not force))
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'cb_downgrade') and self.cb_downgrade is not None:
+                self.cb_downgrade.setEnabled(not self._installing)
         except Exception:
             pass
 
@@ -817,17 +891,40 @@ class SoftwareManagerTab(QWidget):
         self._worker = None
         self._thread = None
         self._pending_op_desc = None
+
+        try:
+            if self._installing and self._install_queue:
+                self._install_next_in_queue()
+                return
+        except Exception:
+            pass
+
+        try:
+            if self._installing:
+                self._set_installing(False)
+        except Exception:
+            pass
+
         self._resume_foreground_timer()
 
     # -------- actions --------
     def _install_apk(self):
-        path, _ = QFileDialog.getOpenFileName(self, '选择 APK', '', 'APK (*.apk);;所有文件 (*.*)')
-        if not path:
+        paths, _ = QFileDialog.getOpenFileNames(self, '选择 APK（可多选）', '', 'APK (*.apk);;所有文件 (*.*)')
+        if not paths:
             return
-        if not Path(path).exists():
+
+        ok_paths: list[str] = []
+        for p in paths:
+            try:
+                if p and Path(p).exists():
+                    ok_paths.append(p)
+            except Exception:
+                pass
+        if not ok_paths:
             self._toast('warn', '提示', '选择的 APK 文件不存在')
             return
-        self._selected_apk = path
+
+        self._selected_apk = ok_paths[0]
         serial = self._get_default_serial()
         if not serial:
             try:
@@ -839,13 +936,99 @@ class SoftwareManagerTab(QWidget):
             else:
                 self._toast('warn', '提示', f'检测到多个设备({len(serials)})，请仅保留一个设备后再操作')
             return
-        self._write_oplog(serial, '-', f"install {'-r' if self.cb_reinstall.isChecked() else ''} {Path(path).name}".strip())
-        args = ['install']
-        if self.cb_reinstall.isChecked():
-            args.append('-r')
-        args.append(path)
+
+        self._install_queue = list(ok_paths)
+        self._install_total = len(self._install_queue)
+        self._install_done = 0
+
         self._set_installing(True)
-        self._run_adb_cmd(args, op_desc='安装APK')
+        self._install_next_in_queue()
+
+    def _install_next_in_queue(self):
+        if not self._install_queue:
+            return
+        if self._thread and self._thread.isRunning():
+            return
+
+        path = ''
+        try:
+            path = str(self._install_queue.pop(0) or '').strip()
+        except Exception:
+            path = ''
+        if not path:
+            self._install_next_in_queue()
+            return
+
+        try:
+            if not Path(path).exists():
+                self._install_next_in_queue()
+                return
+        except Exception:
+            pass
+
+        try:
+            self._selected_apk = path
+        except Exception:
+            pass
+
+        self._install_done += 1
+        try:
+            if hasattr(self, 'install_progress') and self.install_progress is not None:
+                self.install_progress.setFormat(f"正在安装… ({self._install_done}/{self._install_total})")
+        except Exception:
+            pass
+
+        serial = self._get_default_serial()
+        if not serial:
+            try:
+                serials = adb_service.list_devices()
+            except Exception:
+                serials = []
+            if not serials:
+                self._toast('warn', '提示', '未检测到设备')
+            else:
+                self._toast('warn', '提示', f'检测到多个设备({len(serials)})，请仅保留一个设备后再操作')
+            try:
+                self._install_queue = []
+            except Exception:
+                pass
+            return
+
+        try:
+            flags = ''
+            try:
+                force_r = False
+                if hasattr(self, 'cb_downgrade') and self.cb_downgrade.isChecked():
+                    force_r = True
+                if force_r or self.cb_reinstall.isChecked():
+                    flags += ' -r'
+            except Exception:
+                pass
+            try:
+                if hasattr(self, 'cb_downgrade') and self.cb_downgrade.isChecked():
+                    flags += ' -d'
+            except Exception:
+                pass
+            self._write_oplog(serial, '-', f"install{flags} {Path(path).name}".strip())
+        except Exception:
+            pass
+
+        args = ['install']
+        try:
+            force_r = False
+            if hasattr(self, 'cb_downgrade') and self.cb_downgrade.isChecked():
+                force_r = True
+            if force_r or self.cb_reinstall.isChecked():
+                args.append('-r')
+        except Exception:
+            pass
+        try:
+            if hasattr(self, 'cb_downgrade') and self.cb_downgrade.isChecked():
+                args.append('-d')
+        except Exception:
+            pass
+        args.append(path)
+        self._run_adb_cmd(args, op_desc=f"安装APK ({self._install_done}/{self._install_total})")
 
     def _pkg(self) -> str:
         s = (self._selected_pkg or '').strip()
