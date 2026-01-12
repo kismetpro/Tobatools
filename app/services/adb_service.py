@@ -114,13 +114,39 @@ def check_adb_available() -> bool:
 
 def list_devices() -> List[str]:
     adb = str(ADB_BIN) if ADB_BIN.exists() else "adb"
-    out = _run([adb, "devices"], timeout=2)  # 减少超时到 2 秒
-    serials: List[str] = []
-    for line in out.splitlines()[1:]:
-        parts = line.split()
-        if len(parts) >= 2 and parts[1] == "device":
-            serials.append(parts[0])
-    return serials
+    
+    # 首次调用可能触发 ADB server 启动，需要等待和重试
+    max_retries = 3
+    retry_delay = 1.0  # 秒
+    
+    for attempt in range(max_retries):
+        out = _run([adb, "devices"], timeout=5)  # 增加超时以等待 server 启动
+        
+        # 检查是否包含 "daemon started" 或 "starting" 等启动信息
+        if "daemon" in out.lower() and "start" in out.lower():
+            # ADB server 正在启动，等待后重试
+            if attempt < max_retries - 1:
+                import time
+                time.sleep(retry_delay)
+                continue
+        
+        # 解析设备列表
+        serials: List[str] = []
+        for line in out.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) >= 2 and parts[1] == "device":
+                serials.append(parts[0])
+        
+        # 如果找到设备或已是最后一次尝试，返回结果
+        if serials or attempt == max_retries - 1:
+            return serials
+        
+        # 没找到设备但可能是 server 刚启动，等待后重试
+        if attempt < max_retries - 1:
+            import time
+            time.sleep(retry_delay)
+    
+    return []
 
 
 def _getprop(serial: str, key: str) -> str:
@@ -282,6 +308,58 @@ def get_device_info(serial: str) -> Dict[str, str]:
     add("battery", battery_level)
     add("bootloader", _getprop(serial, "ro.bootloader"))
     add("baseband", _getprop(serial, "gsm.version.baseband"))
+    
+    # CPU information
+    # 尝试多种方式获取CPU型号
+    cpu_model = ""
+    
+    # 方法1: 从 /proc/cpuinfo 获取
+    cpuinfo = _shell(serial, "cat /proc/cpuinfo")
+    if cpuinfo:
+        for line in cpuinfo.splitlines():
+            line = line.strip()
+            if line.startswith("Hardware"):
+                cpu_model = line.split(":", 1)[-1].strip()
+                break
+            elif line.startswith("Processor") and not cpu_model:
+                cpu_model = line.split(":", 1)[-1].strip()
+    
+    # 方法2: 从系统属性获取
+    if not cpu_model:
+        cpu_model = _getprop(serial, "ro.hardware")
+    
+    # 方法3: 从 /sys/devices/system/cpu/soc 获取
+    if not cpu_model:
+        soc_id = _read_sys_value(serial, [
+            "/sys/devices/system/cpu/soc0/serial_number",
+            "/sys/devices/system/cpu/soc0/family",
+            "/sys/devices/system/cpu/soc0/id"
+        ])
+        if soc_id:
+            cpu_model = soc_id
+    
+    # 方法4: 尝试从dmesg获取
+    if not cpu_model:
+        dmesg = _shell(serial, "dmesg | grep -i 'cpu\\|processor\\|soc' | head -5")
+        if dmesg:
+            for line in dmesg.splitlines():
+                if any(keyword in line.lower() for keyword in ["mt", "snapdragon", "qualcomm", "mediatek", "dimensity"]):
+                    # 提取可能的CPU型号
+                    import re
+                    match = re.search(r'(MT\d+\w*|SDM\d+\w*|SM\d+\w*|Snapdragon\s+\w+|Dimensity\s+\d+\w*)', line, re.IGNORECASE)
+                    if match:
+                        cpu_model = match.group(1)
+                        break
+    
+    # 如果还是获取不到，使用架构信息作为后备
+    if not cpu_model:
+        cpu_abi = _getprop(serial, "ro.product.cpu.abi")
+        cpu_abi2 = _getprop(serial, "ro.product.cpu.abi2")
+        cpu_model = cpu_abi
+        if cpu_abi2 and cpu_abi2 != cpu_abi:
+            cpu_model = f"{cpu_abi} ({cpu_abi2})"
+    
+    add("cpu_info", cpu_model or "Unknown")
 
     # battery health
     rated_capacity = _read_sys_value(serial, [
