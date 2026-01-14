@@ -1365,8 +1365,8 @@ class _PayloadWorker(QObject):
     
     def run(self):
         try:
-            import sys
-            cmd = [sys.executable, '--payload-dumper']
+            # 构建命令
+            cmd = ['python', '-m', 'payload_dumper']
             
             # 添加分区参数
             if self.partitions:
