@@ -3,21 +3,8 @@ from PyInstaller.utils.hooks import collect_data_files
 
 datas = [('android-chrome-512x512.png', '.'), ('android-chrome-512x512.ico', '.'), ('app', 'app'), ('bin', 'bin')]
 binaries = []
-hiddenimports = [
-    'payload_dumper',
-    'payload_dumper.__main__',
-    'payload_dumper.update_metadata_pb2',
-    'google.protobuf',
-    'google.protobuf.descriptor',
-    'google.protobuf.message',
-    'bsdiff4',
-    'zstd',
-    'enlighten',
-    'blessed',
-    'prefixed',
-]
+hiddenimports = []
 datas += collect_data_files('qfluentwidgets')
-datas += collect_data_files('payload_dumper')
 
 a = Analysis(
     ['launcher.py'],
